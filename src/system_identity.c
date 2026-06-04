@@ -94,6 +94,17 @@ int si_qmail_deliverable(const char *homedir, const char *ext)
     if (ext == NULL || ext[0] == '\0')
         return 1;   /* bare address: default delivery, always deliverable */
 
+    /* Fail open when the controlling user's home cannot be searched. The
+     * validator runs as the smtpd user (vpopmail), which cannot traverse a
+     * mode-700 private home (Debian's useradd default), so it cannot read the
+     * user's .qmail files to judge an extension. The user exists; qmail-local
+     * runs AS that user at delivery and will deliver or bounce. Accepting defers
+     * that decision rather than false-rejecting a legitimate tagged address —
+     * the same fail-open-on-uncertainty stance the validator takes for a
+     * vpopmail backend it cannot reach. */
+    if (access(homedir, X_OK) != 0)
+        return 1;
+
     if (si_qmail_ext(ext, safeext, sizeof(safeext)) != 0)
         return 0;   /* extension too long to represent — treat as undeliverable */
     sl = strlen(safeext);

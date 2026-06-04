@@ -67,6 +67,14 @@ int main(void)
     touch(".qmail-a:b");
     check("dotted extension via :-translation", "a.b", 1);
 
+    /* fail-open: a home the validator cannot search (here a nonexistent path,
+     * which access() rejects for every uid including root) must be accepted,
+     * deferring the deliver/bounce decision to qmail-local. This is the mode-700
+     * private-home case the smtpd-user validator hits in production. */
+    if (si_qmail_deliverable("/no/such/home/here", "sometag") == 1)
+        printf("ok   fail-open when home unsearchable\n");
+    else { fprintf(stderr, "FAIL fail-open when home unsearchable\n"); ++failures; }
+
     /* now add a top-level .qmail-default: everything becomes deliverable */
     touch(".qmail-default");
     check("top-level .qmail-default catches unknown", "anything-at-all", 1);
