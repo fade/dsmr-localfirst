@@ -16,8 +16,11 @@ fail() { printf 'FAIL %s\n' "$1"; fails=$((fails + 1)); }
 
 # --- fixtures ---
 # rcpthosts includes a leading-dot wildcard entry to exercise suffix matching.
-printf 'asteroid.radio\nmail.example.com\n.wild.example\n' > "$tmp/rcpthosts"
+# sys.example is a locals (system) domain: validated against the system layer
+# only, with no vpopmail fallthrough.
+printf 'asteroid.radio\nmail.example.com\nsys.example\n.wild.example\n' > "$tmp/rcpthosts"
 printf 'asteroid.radio\n'                                  > "$tmp/localfirstdomains"
+printf 'sys.example\n'                                     > "$tmp/locals"
 
 cat > "$tmp/vrcptcheck" <<'EOF'
 #!/bin/bash
@@ -34,6 +37,7 @@ chmod +x "$tmp/vrcptcheck"
 cflags="${CFLAGS:--O2 -Wall -Wextra}"
 defs=(
   -DRCPTHOSTS="\"$tmp/rcpthosts\""
+  -DLOCALS="\"$tmp/locals\""
   -DLOCALFIRSTDOMAINS="\"$tmp/localfirstdomains\""
   -DVRCPTCHECK="\"$tmp/vrcptcheck\""
   -DVPOPMAIL_SQLCONF="\"$tmp/sqlconf\""     # created only for the down-test
@@ -46,7 +50,8 @@ defs=(
     || { fail "compile validator"; exit 1; }
 # System-only binary: vrcptcheck path does not exist (no vpopmail layer).
 "${CC:-cc}" $cflags \
-    -DRCPTHOSTS="\"$tmp/rcpthosts\"" -DLOCALFIRSTDOMAINS="\"$tmp/localfirstdomains\"" \
+    -DRCPTHOSTS="\"$tmp/rcpthosts\"" -DLOCALS="\"$tmp/locals\"" \
+    -DLOCALFIRSTDOMAINS="\"$tmp/localfirstdomains\"" \
     -DVRCPTCHECK="\"$tmp/NO-vrcptcheck\"" -DVPOPMAIL_SQLCONF="\"$tmp/sqlconf\"" \
     -DRCPTCHECK_CHAIN="\"$tmp/chain\"" \
     -o "$tmp/rc_nolayer" src/localfirst-rcptcheck.c src/system_identity.c \
@@ -86,6 +91,20 @@ expect "missing RECIPIENT deferred"             111
 expect "wildcard subdomain treated as local (unknown->reject)" 100 "ghost@sub.wild.example"
 expect "wildcard subdomain exists accepted"     0   "realbob@deep.sub.wild.example"
 expect "lookalike domain NOT matched (relay accept)" 0 "ghost@evilwild.example"
+
+# --- F: locals (system) domain — system layer only, no vpopmail fallthrough ---
+# A locals-domain recipient is validated exactly as qmail would deliver it:
+# real /home users (and their qmail extensions/aliases) accept; everything else
+# rejects. There is deliberately NO vpopmail check here — note "realbob" (which
+# the vrcptcheck stub would accept on a vpopmail domain) is rejected on a locals
+# domain, proving the fallthrough is gone.
+if [ -n "$home_user" ]; then
+    expect "locals: /home user accepted"        0   "$home_user@sys.example"
+    expect "locals: mixed-case /home user accepted" 0 "${home_user^}@sys.example"
+fi
+expect "locals: unknown user rejected"          100 "ghost-no-such@sys.example"
+expect "locals: vpopmail name NOT consulted"    100 "realbob@sys.example"
+expect "locals: service account rejected"       100 "bin@sys.example"
 
 # --- D: backend-down -> defer (not reject) ---
 # vrcptcheck returns absent (exit 1); the SQL config points at a refused port,

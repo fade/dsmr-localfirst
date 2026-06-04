@@ -56,4 +56,4 @@ install: all
 	install -D -m 0644 man/localfirst-backend-monitor.8 $(DESTDIR)$(MANDIR)/localfirst-backend-monitor.8
 
 clean:
-	rm -f $(PROGS) src/*.o test/test_ext
+	rm -f $(PROGS) src/*.o test/test_ext test/test_deliverable

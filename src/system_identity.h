@@ -2,9 +2,18 @@
  * system_identity — the shared eligibility predicate for hybrid
  * system/vpopmail mail domains.
  *
- * A local-part L is a "mail-eligible system identity" iff EITHER
- *   (clause 1) getpwnam(L) resolves to an account whose home is under /home/,
- *   (clause 2) ~alias/.qmail-<translate(L)> exists.
+ * A local-part L is a "mail-eligible system identity" iff qmail itself would
+ * deliver it locally (rather than bounce), restricted to /home accounts and the
+ * alias user. The resolution faithfully follows qmail's own address handling:
+ *
+ *   (clause 1) qmail-getpw user resolution: the longest dash-delimited prefix of
+ *              L that names a real /home account (uid != 0) is the controlling
+ *              user, the remainder its qmail extension. A bare user is always
+ *              deliverable; an extension is deliverable only when a matching
+ *              .qmail-<ext> or .qmail-…default catch-all exists (qmail-local).
+ *   (clause 2) the qmail-getpw alias fallback: an unresolved L is deliverable
+ *              iff ~alias/.qmail-<translate(L)> or a -default catch-all exists.
+ *
  * Otherwise L is not a system identity and resolution falls through to vpopmail.
  *
  * This is the single source of truth used by BOTH the delivery dispatcher and
@@ -28,6 +37,16 @@ typedef enum {
  * -1 if the result would not fit.
  */
 int si_qmail_ext(const char *localpart, char *out, size_t n);
+
+/*
+ * Would qmail-local deliver (not bounce) a recipient whose controlling user has
+ * home `homedir` and RAW qmail extension `ext`? Reproduces qmail-local's
+ * qmesearch: a non-empty extension is deliverable iff `.qmail-<safeext>` or one
+ * of the `.qmail-…default` catch-alls (down to `.qmail-default`) exists as a
+ * regular file; a bare extension (NULL/"") is always deliverable. Returns 1 if
+ * deliverable, 0 otherwise. Exposed for unit testing against fixture homes.
+ */
+int si_qmail_deliverable(const char *homedir, const char *ext);
 
 /*
  * Evaluate the eligibility predicate for `localpart`.

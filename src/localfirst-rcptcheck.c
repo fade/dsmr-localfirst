@@ -18,10 +18,15 @@
  * Decision logic per recipient:
  *   domain NOT in rcpthosts        -> accept   (relay target; permission was
  *                                               already enforced by AUTH+tcprules)
- *   domain in localfirstdomains    -> accept if system_identity(local)        (system-first)
+ *   domain in locals               -> accept if system_identity(local)        (system domain:
+ *                                     else reject                              users, qmail
+ *                                                                              extension addressing,
+ *                                                                              ~alias/.qmail — no
+ *                                                                              vpopmail layer here)
+ *   domain in localfirstdomains    -> accept if system_identity(local)        (hybrid: system-first)
  *                                     or vpopmail recipient exists             (fallthrough)
  *                                     else reject
- *   other local rcpthosts domain   -> accept if vpopmail recipient exists
+ *   other local rcpthosts domain   -> accept if vpopmail recipient exists     (pure vpopmail)
  *                                     else reject
  *
  * The vpopmail existence check shells out to ~vpopmail/bin/vrcptcheck, which is
@@ -57,6 +62,12 @@
  * run time. */
 #ifndef RCPTHOSTS
 #define RCPTHOSTS        "/var/qmail/control/rcpthosts"
+#endif
+/* qmail's locals: domains delivered to system accounts (qmail-send checks this
+ * before virtualdomains). A recipient on a locals domain is validated against
+ * the system layer alone — there is no vpopmail backend for it. */
+#ifndef LOCALS
+#define LOCALS           "/var/qmail/control/locals"
 #endif
 #ifndef LOCALFIRSTDOMAINS
 #define LOCALFIRSTDOMAINS "/var/qmail/control/localfirstdomains"
@@ -388,6 +399,17 @@ int main(void)
      * This runs only for local domains, so relay targets are unaffected. */
     if (strchr(local, '@') != NULL)
         return reject();
+
+    /* A locals domain is delivered to system accounts only (qmail-send resolves
+     * it through users/assign, never vpopmail). Validate it against the system
+     * layer exactly as qmail would deliver it — real users, qmail extension
+     * addressing, and ~alias/.qmail aliases — and reject only what qmail-local
+     * would bounce. There is no vpopmail fallthrough for a locals domain. */
+    if (domain_listed(LOCALS, domain)) {
+        if (system_identity(local) != SI_NONE)
+            return accept_rcpt();
+        return reject();
+    }
 
     if (domain_listed(LOCALFIRSTDOMAINS, domain)) {
         /* hybrid domain: system-first, then vpopmail fallthrough */

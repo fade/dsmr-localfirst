@@ -21,13 +21,26 @@ Accepted. The recipient is a relay target; relay permission is enforced earlier
 by authentication and tcprules. The validator never rejects a non-local domain,
 so authenticated submission to external addresses is unaffected.
 .TP
+.B Domain in locals
+A system (locals) domain is delivered to system accounts only; qmail-send never
+routes it to vpopmail. It is validated against the system layer alone: accepted
+if the local-part is a system identity (a real
+.I /home
+user, a qmail extension of one with a matching
+.IR .qmail- *
+file, or a
+.IR ~alias/.qmail
+alias \(em see
+.BR system-identity (8)),
+otherwise rejected. There is no vpopmail fallthrough.
+.TP
 .B Domain in localfirstdomains
-Accepted if the local-part is a system identity (see
+A hybrid (vpopmail) domain. Accepted if the local-part is a system identity (see
 .BR system-identity (8));
 otherwise the vpopmail check below applies.
 .TP
 .B Other local domain
-The vpopmail recipient check applies.
+A pure vpopmail domain. The vpopmail recipient check applies.
 .PP
 The vpopmail check shells out to
 .IR ~vpopmail/bin/vrcptcheck .
@@ -51,9 +64,14 @@ the outbound relay throttle), so both checks share qmail's single
 slot.
 .SH CONTROL FILES
 .TP
+.I /var/qmail/control/locals
+One domain per line; qmail's system (locally-delivered) domains. Recipients on
+these domains are validated against the system layer only, with no vpopmail
+fallthrough. A line beginning with a dot matches subdomains.
+.TP
 .I /var/qmail/control/localfirstdomains
-One domain per line; the domains for which system-first resolution applies. A
-line beginning with a dot matches subdomains.
+One domain per line; the vpopmail domains for which system-first resolution
+applies. A line beginning with a dot matches subdomains.
 .TP
 .I /var/qmail/control/rcpthosts
 Consulted to distinguish local domains from relay targets. Leading-dot wildcard
