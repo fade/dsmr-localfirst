@@ -1,3 +1,24 @@
+dsmr-localfirst (1.0-4) trixie; urgency=medium
+
+  * localfirst-rcptcheck: validate qmail extension addressing faithfully.
+    The recipient gate now resolves recipients exactly as qmail delivers them —
+    the longest dash-prefix that is a real /home user is the controlling
+    account, and an extension is accepted only when a matching .qmail-<ext> or
+    .qmail-...default catch-all exists (a bare user always delivers). Previously
+    only an exact account name matched, so legitimate tagged addresses such as
+    user-twitch@domain and ~alias/.qmail aliases were rejected at SMTP time even
+    though qmail would have delivered them.
+  * localfirst-rcptcheck: recognise qmail locals (system) domains. A recipient
+    on a control/locals domain is validated against the system layer alone, with
+    no vpopmail fallthrough, so a pure system domain that carries no vpopmail
+    users no longer rejects every recipient. Hybrid (localfirstdomains) and pure
+    vpopmail domains are unchanged.
+  * The shared system-identity predicate carries both improvements, so the
+    delivery-time dispatcher routes system extensions consistently with the
+    SMTP-time gate.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Thu, 04 Jun 2026 17:30:00 +0000
+
 dsmr-localfirst (1.0-3) trixie; urgency=medium
 
   * Ship the design spec and deployment runbook under /usr/share/doc

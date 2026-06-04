@@ -27,6 +27,10 @@ expect_exit() {
 "${CC:-cc}" ${CFLAGS:--O2 -Wall} -o test/test_ext test/test_ext.c src/system_identity.c \
     && ./test/test_ext || fail "ext translation unit test"
 
+# --- qmail-local deliverability unit test (.qmail-<ext>/.qmail-...default chain) ---
+"${CC:-cc}" ${CFLAGS:--O2 -Wall} -o test/test_deliverable test/test_deliverable.c src/system_identity.c \
+    && ./test/test_deliverable || fail "qmail deliverability unit test"
+
 # --- clause 1: a real /home account is eligible ---
 # Pick a passwd entry whose home is under /home/ to keep the test host-agnostic.
 home_user=$(getent passwd | awk -F: '$6 ~ /^\/home\// {print $1; exit}')

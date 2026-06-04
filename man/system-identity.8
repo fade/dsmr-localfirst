@@ -8,16 +8,28 @@ system-identity \- test whether a local-part is a mail-eligible system identity
 .B system-identity
 evaluates the shared eligibility predicate used by the DSMR system-first
 recipient routing for hybrid system/vpopmail mail domains. A local-part is a
-mail-eligible system identity if either it names a Unix account whose home
-directory is under
-.IR /home/ ,
-or an alias file
+mail-eligible system identity when qmail itself would deliver it locally rather
+than bounce, restricted to
+.I /home
+accounts and the alias user. Resolution follows qmail's own address handling:
+the longest dash-delimited prefix of the local-part that names a real
+.I /home
+account (see
+.BR qmail-getpw (8))
+is the controlling user and the remainder its qmail extension. A bare user is
+always deliverable; an extension is deliverable only when a matching
+.IR .qmail- extension
+file or one of the
+.IR .qmail- ...\& default
+catch-alls exists (see
+.BR dot-qmail (5)).
+An unresolved local-part is deliverable when the alias user has a matching
 .IR ~alias/.qmail- LOCALPART
-exists (with the local-part lowercased and each
+or catch-all (the local-part lowercased and each
 .RB \(oq . \(cq
 translated to
 .RB \(oq : \(cq,
-matching qmail-local's own filename rules).
+matching qmail-local's filename rules).
 .PP
 It is the same predicate consulted by
 .BR localfirst-rcptcheck (8)
@@ -39,8 +51,10 @@ Usage error.
 .SH NOTES
 Service accounts (whose home directories are not under
 .IR /home/ )
-are deliberately excluded, so a virtual recipient that merely collides with a
-system login name is not treated as a system identity.
+and uid 0 are deliberately excluded, so a virtual recipient that merely collides
+with a system login name is not treated as a system identity. This is the
+stack's hybrid-safety narrowing of qmail-getpw's home-ownership test, applied
+identically at SMTP-validation and delivery time so the two never disagree.
 .SH SEE ALSO
 .BR localfirst-rcptcheck (8),
 .BR localfirst-dispatch (8)
