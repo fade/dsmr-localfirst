@@ -1,0 +1,228 @@
+#+TITLE: Deployment Runbook — System-First Recipient Routing
+#+AUTHOR: Brian O'Reilly
+#+OPTIONS: toc:2 num:t
+#+STARTUP: overview
+
+* Purpose & scope
+Deploy =dsmr-localfirst= on a host so one domain serves both shell (system)
+users and vpopmail virtual users, replacing a hand-maintained per-user alias
+stop-gap with dynamic system-first routing.
+
+This runbook is *operator-executed on the target host*. It is safe to pause
+between any two top-level steps; each step is independently reversible (see
+[[*Rollback]]).
+
+** Example host profile
+The commands below use a stand-in host with the DSMR hybrid profile. Substitute
+your own values throughout:
+
+| Placeholder       | Example value     | Meaning                                          |
+|-------------------+-------------------+--------------------------------------------------|
+| =MAILHOST=        | mail.example.com  | the host FQDN; also the =locals= re-injection host |
+| =DOMAIN=          | example.com       | the vpopmail virtual domain served               |
+| backend           | PostgreSQL :5433  | vpopmail SQL backend (host:port from its conf)   |
+
+The profile assumes: =MAILHOST= ≠ =DOMAIN= (so re-injection does not loop), and
+vpopmail's backend is SQL (the recipient validator's outage handling matters).
+- Design contract :: =SPEC-system-first-routing.md= (§5 config, §8 Maildir, §9
+  rollback, §10 tests)
+
+* Preconditions
+:PROPERTIES:
+:CHECKLIST: pre
+:END:
+- [ ] You have root (or passwordless sudo) on =MAILHOST=.
+- [ ] A maintenance window: recipient validation and the catch-all are changing.
+- [ ] The repo is published and the host's apt can see the new versions:
+  - =dsmr-localfirst (1.0-1)=
+  - =dsmr-qmail-run (1.0-10)=
+  - =dsmr-email-encabulator (1.0-15)= (optional; pulls the above)
+- [ ] Confirm the vpopmail backend is *up* before starting (the validator
+  defers, not rejects, on an outage — but don't deploy into one). Use the
+  host/port from =~vpopmail/etc/vpopmail.pgsql= (fields 1 and 2):
+  #+begin_src sh
+  psql -h 127.0.0.1 -p 5433 -U vpopmail -l >/dev/null && echo "backend OK"
+  #+end_src
+- [ ] Note the current package versions for rollback:
+  #+begin_src sh
+  dpkg -l 'dsmr-*' | awk '/^ii/{print $2, $3}'
+  #+end_src
+
+* Step 0 — Back up every file you are about to touch
+Timestamped backups make the rollback trivial. Set =DOMAIN= first.
+#+begin_src sh
+  DOMAIN=example.com
+  ts=$(date +%Y%m%d-%H%M%S)
+  bk=/root/localfirst-backup-$ts
+  mkdir -p "$bk"/{control,supervise,vpopmail}
+  cp -a /var/qmail/control/rcpthosts          "$bk/control/" 2>/dev/null || true
+  cp -a /var/qmail/control/defaultdelivery    "$bk/control/" 2>/dev/null || true
+  cp -a /var/qmail/control/localfirstdomains  "$bk/control/" 2>/dev/null || true
+  cp -a /var/qmail/users/assign               "$bk/vpopmail/" 2>/dev/null || true
+  cp -a "/home/vpopmail/domains/$DOMAIN/.qmail-default" "$bk/vpopmail/" 2>/dev/null || true
+  cp -a /etc/qmail/qmail-smtpd/run            "$bk/supervise/run.smtpd" 2>/dev/null || true
+  cp -a /etc/qmail/qmail-submission/run       "$bk/supervise/run.submission" 2>/dev/null || true
+  echo "backups in $bk"
+#+end_src
+
+* Step 1 — Install the packages
+=dsmr-localfirst= ships the three programs; =dsmr-qmail-run 1.0-10= rewires the
+recipient gate (presence-based: it activates only because localfirst is now
+installed).
+#+begin_src sh
+  apt-get update
+  apt-get install --only-upgrade dsmr-qmail-run
+  apt-get install dsmr-localfirst
+#+end_src
+
+Verify the binaries landed and qmail-smtpd runs as the vpopmail uid (required so
+the validator's =vrcptcheck= child can read the 0600 SQL credentials):
+#+begin_src sh
+  ls -l /var/qmail/bin/localfirst-rcptcheck /var/qmail/bin/localfirst-dispatch /usr/sbin/system-identity
+  ls -l /home/vpopmail/bin/vrcptcheck
+  grep -n 'id -u vpopmail' /etc/qmail/qmail-smtpd/run   # confirms QMAILDUID=vpopmail
+#+end_src
+
+* Step 2 — Control files
+** control/localfirstdomains (new)
+Domains where system-first applies. Each must also be in =rcpthosts=.
+#+begin_src sh
+  DOMAIN=example.com
+  printf '%s\n' "$DOMAIN" > /var/qmail/control/localfirstdomains
+  grep -qxF "$DOMAIN" /var/qmail/control/rcpthosts \
+    || echo "WARNING: $DOMAIN not in rcpthosts — fix before continuing"
+#+end_src
+** control/defaultdelivery (often absent — latent bug)
+Required so a re-injected system delivery lands in =~/Maildir= in Maildir format.
+#+begin_src sh
+  [ -f /var/qmail/control/defaultdelivery ] && cat /var/qmail/control/defaultdelivery
+  printf './Maildir/\n' > /var/qmail/control/defaultdelivery
+#+end_src
+
+* Step 3 — Maildir for eligible system accounts
+Re-injected mail is delivered by qmail-local as the *target user*; qmail-local
+does **not** create a missing =~/Maildir=. (The delivery-time auto-create
+fallback is not yet implemented — see [[*Known gaps / follow-ups]].) So ensure
+every eligible /home account has a Maildir, and that /etc/skel seeds future ones.
+#+begin_src sh
+  # future accounts:
+  [ -d /etc/skel/Maildir ] || maildirmake /etc/skel/Maildir
+  # existing eligible accounts (home under /home):
+  getent passwd | awk -F: '$6 ~ /^\/home\// {print $1":"$6}' | while IFS=: read u h; do
+    if [ ! -d "$h/Maildir" ]; then
+      maildirmake "$h/Maildir" && chown -R "$u":"$(id -gn "$u")" "$h/Maildir"
+      echo "created Maildir for $u"
+    fi
+  done
+#+end_src
+
+* Step 4 — Wire the delivery dispatcher
+Replace the vpopmail domain's catch-all with the dispatcher. The argument is the
+=locals= re-injection host (=MAILHOST=), which MUST differ from the vpopmail
+virtual domain (=DOMAIN=) so re-injection does not loop.
+#+begin_src sh
+  DOMAIN=example.com
+  MAILHOST=mail.example.com
+  qd="/home/vpopmail/domains/$DOMAIN/.qmail-default"
+  cat "$qd"   # expect: | /home/vpopmail/bin/vdelivermail '' delete
+  printf '| /var/qmail/bin/localfirst-dispatch %s\n' "$MAILHOST" > "$qd"
+  chown vpopmail:vchkpw "$qd"
+#+end_src
+
+* Step 5 — Activate the SMTP-time validator
+The =dsmr-qmail-run 1.0-10= run scripts already select =localfirst-rcptcheck= as
+=RCPTCHECK= and drop =CHKUSER_START= *because localfirst is now installed*. Cycle
+the services so the run scripts re-exec with the new environment.
+#+begin_src sh
+  qmailctl restart        # or: svc -t /etc/service/qmail-smtpd /etc/service/qmail-submission
+  sleep 2
+  # confirm the new gate is live in the running process environment:
+  ps auxe | grep -m1 '[q]mail-smtpd' | tr ' ' '\n' | grep -E 'RCPTCHECK=|CHKUSER_START='
+#+end_src
+Expect =RCPTCHECK=/var/qmail/bin/localfirst-rcptcheck= and *no* =CHKUSER_START=.
+
+* Step 6 — Verification (do NOT skip)
+** SMTP RCPT probes from an external host (non-relay path, no DATA)
+Run from a host that is NOT a relayclient of =MAILHOST=, so the validator runs as
+the sole gate. =SYSUSER= is a shell account (home under /home); =REALVUSER= is a
+known vpopmail mailbox on =DOMAIN=.
+#+begin_src sh
+  MAILHOST=mail.example.com; DOMAIN=example.com
+  SYSUSER=alice; REALVUSER=someuser
+  probe() { printf 'HELO test\r\nMAIL FROM:<probe@example.org>\r\nRCPT TO:<%s>\r\nQUIT\r\n' "$1" \
+            | nc -w5 "$MAILHOST" 25 | sed -n '/^[0-9]/p'; }
+  probe "$SYSUSER@$DOMAIN"               # expect 250  (system, /home)
+  probe "$(echo "$SYSUSER" | sed 's/./\U&/')@$DOMAIN"  # expect 250 (mixed-case -> same acct)
+  probe "root@$DOMAIN"                   # expect 250  (alias clause)
+  probe "$REALVUSER@$DOMAIN"             # expect 250  (vpopmail fallthrough)
+  probe "nope-nobody@$DOMAIN"            # expect 550  (neither)
+  probe "bin@$DOMAIN"                    # expect 550  (service acct, home not /home)
+  probe "friend@gmail.com"               # expect 250 OR relay-denied, NOT 550 nomailbox
+#+end_src
+** End-to-end delivery
+- [ ] Send a real message to =SYSUSER@DOMAIN=; confirm it lands in
+  =/home/SYSUSER/Maildir/new/= (system delivery via re-injection).
+- [ ] Send to =REALVUSER@DOMAIN=; confirm normal vpopmail delivery.
+- [ ] From an authenticated submission session (port 587), send to an external
+  address; confirm it is accepted (relay path unaffected) and the outbound
+  =rcptcheck-overlimit= throttle still applies.
+- [ ] =tail -F /var/log/qmail/smtpd/current= during the probes; confirm no
+  unexpected =CRITICAL= backend lines.
+
+* Step 7 — Decommission the stop-gap
+Only after Step 6 passes. Removes the hand-maintained per-user alias shim that
+this feature replaces. =SHELL_USERS= is the set of shell accounts (plus role
+names like =root=) that were given stop-gap aliases on this host.
+#+begin_src sh
+  DOMAIN=example.com
+  SHELL_USERS="alice bob root"          # adjust to this host's stop-gap aliases
+  for u in $SHELL_USERS; do
+    valias -d "$u@$DOMAIN" 2>/dev/null && echo "removed valias $u@$DOMAIN"
+  done
+  # remove any per-user =DOMAIN-<user>: assigns, then rebuild the cdb:
+  #   edit /var/qmail/users/assign, delete the =<DOMAIN>-<user>: lines, then:
+  qmail-newu      # rebuild users/cdb after assign changes
+#+end_src
+Re-run the Step 6 probes after this to confirm the dynamic path still resolves
+every identity the aliases used to cover.
+
+* Rollback
+Each change is independently reversible; restore from =$bk= (Step 0).
+#+begin_src sh
+  DOMAIN=example.com
+  # 1. restore the vpopmail catch-all
+  printf "| /home/vpopmail/bin/vdelivermail '' delete\n" \
+    > "/home/vpopmail/domains/$DOMAIN/.qmail-default"
+  # 2. revert the recipient gate: simplest is to remove localfirst so the
+  #    run scripts fall back to chkuser automatically, then restart.
+  apt-get remove dsmr-localfirst
+  qmailctl restart
+  # 3. if needed, re-add the per-user aliases from the backup notes.
+  # 4. control/defaultdelivery and control/localfirstdomains can be removed if
+  #    reverting fully (defaultdelivery=./Maildir/ is harmless to keep).
+#+end_src
+Note: removing =dsmr-localfirst= is the cleanest gate rollback — the
+presence-based run scripts re-enable =CHKUSER_START= on the next restart.
+
+* Operational notes
+- *Backend outage* :: if the vpopmail SQL backend goes down, the validator
+  *defers* (451) affected recipients and logs =LOG_CRIT= to the mail facility —
+  it never 550-rejects vpopmail users during an outage, and never injects alert
+  mail into the degraded MTA. Alert on the log out-of-band (see follow-ups).
+- *Recipient-count limit* :: chkuser's per-session cap is not reimposed. Set
+  =control/maxrcpt= to bound recipients per session if wanted.
+- *rcpthosts wildcards* :: leading-dot entries (=.example.com=) are honoured;
+  =morercpthosts.cdb= is not consulted.
+- *system-identity probe* :: =system-identity LOCALPART= reports how any
+  local-part will be classified — use it to debug routing on the host.
+
+* Known gaps / follow-ups
+- [ ] *Delivery-time Maildir auto-create* not yet implemented (the dispatcher
+  runs as vpopmail and cannot create a user-owned Maildir). Until then, Step 3's
+  skel + sweep is the mechanism. A =control/defaultdelivery= wrapper that creates
+  =./Maildir= as the target user is the intended fallback.
+- [ ] *Out-of-band backend-down monitor* (watches for the validator's =CRITICAL=
+  condition and emails root/postmaster once, out-of-band) — shipped with
+  =dsmr-localfirst= as a cron-driven check.
+- [ ] *dsmr-mta-only* milestone: vpopmail-optional =dsmr-qmail-run= for
+  system-delivery-only hosts.

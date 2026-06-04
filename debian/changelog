@@ -1,3 +1,12 @@
+dsmr-localfirst (1.0-3) trixie; urgency=medium
+
+  * Ship the design spec and deployment runbook in /usr/share/doc/dsmr-localfirst
+    (doc/SPEC-system-first-routing.md, doc/DEPLOY-system-first.org), so the
+    package's design and operational documentation travels with the package
+    rather than living outside the repository.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Thu, 04 Jun 2026 14:00:00 +0000
+
 dsmr-localfirst (1.0-2) trixie; urgency=medium
 
   * Add localfirst-backend-monitor, an out-of-band vpopmail SQL backend
