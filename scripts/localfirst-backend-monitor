@@ -1,0 +1,93 @@
+#!/bin/bash
+# localfirst-backend-monitor — out-of-band vpopmail SQL backend liveness check.
+#
+# localfirst-rcptcheck DEFERS (451) vpopmail recipients and logs LOG_CRIT when
+# the vpopmail SQL backend is unreachable, rather than rejecting them.  This
+# monitor turns that condition into a single, rate-limited notification: it
+# probes the backend on a schedule (cron) and emails root + postmaster ONCE
+# when the backend goes down and ONCE when it recovers.  It never sends a
+# message per deferred recipient — piling mail into a degraded MTA is exactly
+# the failure mode the deferral design avoids.
+#
+# The alert is delivered to system aliases (root/postmaster) via the local
+# sendmail, which qmail routes through .qmail-alias / qmail-local — it does NOT
+# consult the vpopmail SQL backend, so the alert is deliverable during an outage.
+#
+# On a host with no vpopmail backend configured this exits quietly (no-op), so
+# it is harmless on system-delivery-only hosts.
+set -u
+
+SQLCONF=${SQLCONF:-/home/vpopmail/etc/vpopmail.pgsql}
+STATE=${STATE:-/run/localfirst-backend-monitor.state}
+TIMEOUT=${TIMEOUT:-3}
+RECIPIENTS=${RECIPIENTS:-root postmaster}
+IDENT=localfirst-rcptcheck
+
+log() { logger -t localfirst-backend-monitor -p "mail.$1" "$2" 2>/dev/null || true; }
+
+# Read host+port from the first non-comment line of the vpopmail SQL conf
+# (SERVER|PORT|USER|PASSWORD|DATABASE; empty fields take defaults). Credentials
+# are never read.
+read_conf() {
+    local line host port
+    line=$(grep -vE '^[[:space:]]*(#|$)' "$SQLCONF" 2>/dev/null | head -1) || return 1
+    [ -n "$line" ] || return 1
+    IFS='|' read -r host port _ <<<"$line"
+    HOST=${host:-127.0.0.1}
+    port=${port//[!0-9]/}
+    PORT=${port:-5432}
+}
+
+# 0 = backend answering, 1 = unreachable.
+probe() {
+    timeout "$TIMEOUT" bash -c "exec 3<>/dev/tcp/$HOST/$PORT" 2>/dev/null
+}
+
+# A few recent validator CRIT lines, for context in the down alert.
+recent_crit() {
+    journalctl -t "$IDENT" -p crit -n 10 --since "-15min" -o cat 2>/dev/null
+}
+
+notify() {  # subject body
+    local sm
+    for sm in /usr/sbin/sendmail /var/qmail/bin/sendmail /usr/lib/sendmail; do
+        [ -x "$sm" ] && break
+    done
+    if [ ! -x "$sm" ]; then
+        log warning "no sendmail found; could not send alert: $1"
+        return
+    fi
+    {
+        printf 'To: %s\n' "${RECIPIENTS// /, }"
+        printf 'Subject: %s\n\n' "$1"
+        printf '%s\n' "$2"
+    } | "$sm" -oi $RECIPIENTS 2>/dev/null \
+        || log warning "sendmail failed; could not send alert: $1"
+}
+
+read_conf || { log notice "no vpopmail SQL conf ($SQLCONF); nothing to monitor"; exit 0; }
+
+if probe; then state=up; else state=down; fi
+prev=$(cat "$STATE" 2>/dev/null || echo up)
+
+if [ "$state" = down ] && [ "$prev" != down ]; then
+    log crit "vpopmail SQL backend $HOST:$PORT UNREACHABLE; recipients deferring"
+    notify "[$(hostname -f 2>/dev/null || hostname)] vpopmail SQL backend UNREACHABLE ($HOST:$PORT)" \
+"The vpopmail SQL backend at $HOST:$PORT is not answering.
+
+localfirst-rcptcheck is DEFERRING (451) vpopmail recipients until it recovers;
+inbound mail is queued, not bounced. Investigate the database/network now.
+
+Recent recipient-validator log lines:
+$(recent_crit)
+"
+    echo down >"$STATE"
+elif [ "$state" = up ] && [ "$prev" = down ]; then
+    log notice "vpopmail SQL backend $HOST:$PORT recovered"
+    notify "[$(hostname -f 2>/dev/null || hostname)] vpopmail SQL backend recovered ($HOST:$PORT)" \
+"The vpopmail SQL backend at $HOST:$PORT is answering again.
+Recipient validation has returned to normal."
+    echo up >"$STATE"
+else
+    echo "$state" >"$STATE"
+fi

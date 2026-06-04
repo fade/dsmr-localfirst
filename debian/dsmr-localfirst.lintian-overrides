@@ -3,3 +3,9 @@
 # and file-in-unusual-dir warnings are expected and harmless here.
 dsmr-localfirst: non-standard-dir-in-var
 dsmr-localfirst: file-in-unusual-dir
+
+# The backend liveness check is a periodic cron job by deliberate choice: it
+# matches the DSMR stack's existing cron-driven maintenance (e.g. qmail's
+# rcptcheck-overlimit), and the daemontools-supervised mail services do not use
+# systemd timers.  A systemd timer is not wanted here.
+dsmr-localfirst: missing-systemd-timer-for-cron-script

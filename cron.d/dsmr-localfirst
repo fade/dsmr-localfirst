@@ -1,0 +1,6 @@
+# Out-of-band vpopmail SQL backend liveness check for dsmr-localfirst.
+# Probes the backend every 5 minutes and emails root/postmaster once when it
+# goes down (recipients are deferring) and once when it recovers. No-op on
+# hosts without a vpopmail backend.
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * root [ -x /usr/sbin/localfirst-backend-monitor ] && /usr/sbin/localfirst-backend-monitor

@@ -48,9 +48,12 @@ install: all
 	install -D -m 0755 localfirst-rcptcheck $(DESTDIR)$(QMAILBIN)/localfirst-rcptcheck
 	install -D -m 0755 localfirst-dispatch  $(DESTDIR)$(QMAILBIN)/localfirst-dispatch
 	install -D -m 0755 system-identity      $(DESTDIR)$(SBINDIR)/system-identity
+	install -D -m 0755 scripts/localfirst-backend-monitor $(DESTDIR)$(SBINDIR)/localfirst-backend-monitor
+	install -D -m 0644 cron.d/dsmr-localfirst $(DESTDIR)/etc/cron.d/dsmr-localfirst
 	install -D -m 0644 man/localfirst-rcptcheck.8 $(DESTDIR)$(MANDIR)/localfirst-rcptcheck.8
 	install -D -m 0644 man/localfirst-dispatch.8  $(DESTDIR)$(MANDIR)/localfirst-dispatch.8
 	install -D -m 0644 man/system-identity.8      $(DESTDIR)$(MANDIR)/system-identity.8
+	install -D -m 0644 man/localfirst-backend-monitor.8 $(DESTDIR)$(MANDIR)/localfirst-backend-monitor.8
 
 clean:
 	rm -f $(PROGS) src/*.o test/test_ext

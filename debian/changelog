@@ -1,3 +1,14 @@
+dsmr-localfirst (1.0-2) trixie; urgency=medium
+
+  * Add localfirst-backend-monitor, an out-of-band vpopmail SQL backend
+    liveness check run every 5 minutes from /etc/cron.d/dsmr-localfirst.  It
+    emails root/postmaster once when the backend goes down (recipients are
+    deferring) and once when it recovers, rather than alerting per deferred
+    message, which would only worsen a degraded MTA.  No-op on hosts with no
+    vpopmail backend.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Thu, 04 Jun 2026 13:00:00 +0000
+
 dsmr-localfirst (1.0-1) trixie; urgency=medium
 
   * Initial release.  System-first recipient routing for hybrid system/vpopmail

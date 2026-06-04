@@ -15,7 +15,8 @@ Depends: ${shlibs:Depends},
  ${misc:Depends},
  qmail (>= 1.06.3)
 Recommends: dsmr-qmail-run (>= 1.0-10),
- vpopmail (>= 5.6.13)
+ vpopmail (>= 5.6.13),
+ cron | cron-daemon
 Description: system-first recipient routing for hybrid qmail/vpopmail domains
  On a domain that vpopmail owns, qmail-smtpd's chkuser validates every
  recipient against vpopmail only, so mail addressed to a system (shell) user
