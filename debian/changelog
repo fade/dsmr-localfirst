@@ -1,3 +1,15 @@
+dsmr-localfirst (1.0-5) trixie; urgency=high
+
+  * localfirst-rcptcheck: fail open when a system user's home cannot be searched.
+    The validator runs as the unprivileged smtpd user (vpopmail), which cannot
+    traverse a mode-700 private home — the useradd default — so it could not read
+    the user's .qmail files and wrongly rejected every extension address (e.g.
+    user-tag@domain) for such users at SMTP time. It now accepts when it cannot
+    read the home, deferring the deliver-or-bounce decision to qmail-local, which
+    runs as the user. Bare users and world-searchable homes are unaffected.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Thu, 04 Jun 2026 19:30:00 +0000
+
 dsmr-localfirst (1.0-4) trixie; urgency=medium
 
   * localfirst-rcptcheck: validate qmail extension addressing faithfully.

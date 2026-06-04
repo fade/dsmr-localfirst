@@ -45,6 +45,11 @@ int si_qmail_ext(const char *localpart, char *out, size_t n);
  * of the `.qmail-…default` catch-alls (down to `.qmail-default`) exists as a
  * regular file; a bare extension (NULL/"") is always deliverable. Returns 1 if
  * deliverable, 0 otherwise. Exposed for unit testing against fixture homes.
+ *
+ * Fails open: if `homedir` cannot be searched (a mode-700 private home, since
+ * the validator runs as the unprivileged smtpd user), returns 1 so a legitimate
+ * tagged address is not rejected on a permission error — qmail-local, running as
+ * the user, makes the real deliver/bounce decision.
  */
 int si_qmail_deliverable(const char *homedir, const char *ext);
 
