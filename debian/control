@@ -1,0 +1,41 @@
+Source: dsmr-localfirst
+Section: mail
+Priority: optional
+Maintainer: Brian O'Reilly <fade@deepsky.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/fade/dsmr-localfirst
+Vcs-Git: https://github.com/fade/dsmr-localfirst.git
+Vcs-Browser: https://github.com/fade/dsmr-localfirst
+
+Package: dsmr-localfirst
+Architecture: any
+Depends: ${shlibs:Depends},
+ ${misc:Depends},
+ qmail (>= 1.06.3)
+Recommends: dsmr-qmail-run (>= 1.0-10),
+ vpopmail (>= 5.6.13)
+Description: system-first recipient routing for hybrid qmail/vpopmail domains
+ On a domain that vpopmail owns, qmail-smtpd's chkuser validates every
+ recipient against vpopmail only, so mail addressed to a system (shell) user
+ is rejected at SMTP time even though qmail-send would deliver it.  This
+ package lets one domain serve both shell users and vpopmail virtual users:
+ recipients are resolved system-first, then fall through to vpopmail.
+ .
+ Resolution is dynamic — creating a normal Unix account (home under /home) or
+ an ~alias/.qmail-NAME alias is sufficient for that identity to receive mail,
+ with no per-user vpopmail alias or qmail assign to provision.  A single
+ eligibility predicate is shared by all components so the SMTP-time and
+ delivery-time paths cannot disagree.
+ .
+ The package provides:
+   - system-identity, a CLI for the shared eligibility predicate
+   - localfirst-rcptcheck, a qmail-smtpd RCPTCHECK validator replacing chkuser
+   - localfirst-dispatch, a .qmail-default dispatcher that re-injects system
+     recipients and otherwise runs vdelivermail unchanged
+ .
+ The recipient validator shells out to vpopmail's vrcptcheck for the
+ vpopmail-existence check, so it links no vpopmail code and degrades to a pure
+ system-identity gate on hosts without vpopmail.  During a vpopmail SQL backend
+ outage it defers affected recipients rather than rejecting them.

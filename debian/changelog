@@ -1,0 +1,13 @@
+dsmr-localfirst (1.0-1) trixie; urgency=medium
+
+  * Initial release.  System-first recipient routing for hybrid system/vpopmail
+    mail domains: a shared eligibility predicate (system-identity), an SMTP-time
+    RCPTCHECK validator (localfirst-rcptcheck) that replaces chkuser, and a
+    delivery-time .qmail-default dispatcher (localfirst-dispatch).
+  * Validator defers (451) rather than rejects when the vpopmail SQL backend is
+    unreachable, logging LOG_CRIT for out-of-band alerting; treats an absent
+    vrcptcheck as a system-only host (unknown local recipient rejected); honours
+    leading-dot rcpthosts wildcards; and chains to the next RCPTCHECK program
+    (the outbound throttle) on accept.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Thu, 04 Jun 2026 12:00:00 +0000

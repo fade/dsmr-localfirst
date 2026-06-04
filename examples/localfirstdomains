@@ -1,0 +1,11 @@
+# /var/qmail/control/localfirstdomains
+#
+# Domains for which recipient resolution is "system-first": a local-part that
+# names a system identity (a /home account, or an ~alias/.qmail-<name> alias)
+# is delivered to that system account; everything else falls through to
+# vpopmail. One domain per line. A line beginning with a dot matches subdomains.
+#
+# A domain listed here MUST also appear in control/rcpthosts.
+#
+# Example for b612.asteroid.radio serving the asteroid.radio domain:
+asteroid.radio

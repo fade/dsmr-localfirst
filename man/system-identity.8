@@ -1,0 +1,46 @@
+.TH SYSTEM-IDENTITY 8 "2026" "dsmr-localfirst" "DSMR mail stack"
+.SH NAME
+system-identity \- test whether a local-part is a mail-eligible system identity
+.SH SYNOPSIS
+.B system-identity
+.I LOCALPART
+.SH DESCRIPTION
+.B system-identity
+evaluates the shared eligibility predicate used by the DSMR system-first
+recipient routing for hybrid system/vpopmail mail domains. A local-part is a
+mail-eligible system identity if either it names a Unix account whose home
+directory is under
+.IR /home/ ,
+or an alias file
+.IR ~alias/.qmail- LOCALPART
+exists (with the local-part lowercased and each
+.RB \(oq . \(cq
+translated to
+.RB \(oq : \(cq,
+matching qmail-local's own filename rules).
+.PP
+It is the same predicate consulted by
+.BR localfirst-rcptcheck (8)
+at SMTP time and by
+.BR localfirst-dispatch (8)
+at delivery time, exposed as a command so an administrator can verify how a
+given recipient will be classified.
+.SH EXIT STATUS
+.TP
+.B 0
+The local-part is a system identity; it is printed on standard output and the
+matched clause (passwd or alias) is noted on standard error.
+.TP
+.B 1
+The local-part is not a system identity (resolution falls through to vpopmail).
+.TP
+.B 2
+Usage error.
+.SH NOTES
+Service accounts (whose home directories are not under
+.IR /home/ )
+are deliberately excluded, so a virtual recipient that merely collides with a
+system login name is not treated as a system identity.
+.SH SEE ALSO
+.BR localfirst-rcptcheck (8),
+.BR localfirst-dispatch (8)

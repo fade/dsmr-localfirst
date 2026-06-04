@@ -1,0 +1,15 @@
+# build artifacts
+*.o
+/system-identity
+/localfirst-dispatch
+/localfirst-rcptcheck
+/test/test_ext
+/test/*-t
+
+# debhelper / dpkg-buildpackage outputs
+/debian/dsmr-localfirst/
+/debian/files
+/debian/*.substvars
+/debian/*.debhelper.log
+/debian/.debhelper/
+/debian/debhelper-build-stamp
