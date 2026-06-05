@@ -35,8 +35,22 @@ either:
 
 1. `getent passwd L` resolves to an account whose home directory is under
    `/home/` (a real human/shell account), **or**
-2. `~alias/.qmail-L` exists (an alias-configured system identity, e.g.
-   `~alias/.qmail-root`, `~alias/.qmail-postmaster`).
+2. `~alias/.qmail-L` (or a matching `.qmail-…default` catch-all) exists — an
+   alias-configured system identity, e.g. `~alias/.qmail-root`,
+   `~alias/.qmail-postmaster`.
+
+   **Fastforward refinement (implemented in 1.0-6).** When the matched catch-all
+   is `~alias/.qmail-default = | fastforward <cdb>`, the mere existence of
+   `.qmail-default` is *not* deliverability: fastforward bounces any address
+   absent from `<cdb>` (its default `-P`). So clause 2 reads `<cdb>` directly and
+   reproduces fastforward's verdict — `L@domain` is eligible only if one of the
+   targets fastforward tries is present: keys `:L@domain`, `:@domain`, `:L@`
+   (lowercased; the any-host alias form keeps the trailing `@`). A `-p`
+   pass-through fastforward, an unreadable cdb, or a real per-alias `.qmail-L`
+   file keep the plain "exists ⇒ eligible" verdict. This is what lets the RCPT
+   gate reject unknown system recipients with 550 instead of accepting and then
+   bouncing them (backscatter). The recipient domain is therefore part of the
+   predicate input.
 
 Otherwise `L` is not a system identity and resolution falls through to vpopmail.
 

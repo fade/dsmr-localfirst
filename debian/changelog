@@ -1,3 +1,15 @@
+dsmr-localfirst (1.0-7) trixie; urgency=low
+
+  * Docs only. SPEC: document the eligibility contract's fastforward refinement
+    — clause 2 validates an alias catch-all of the form "| fastforward <cdb>"
+    against that cdb (targets :L@domain, :@domain, :L@) so unknown system
+    recipients are rejected at RCPT, and the recipient domain is part of the
+    predicate input. DEPLOY: note the cdb-must-track-/etc/aliases maintenance
+    rule (rebuild via newaliases), the "-p disables the reject" gotcha, and the
+    optional DOMAIN argument to the system-identity probe.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Fri, 05 Jun 2026 02:36:18 +0000
+
 dsmr-localfirst (1.0-6) trixie; urgency=high
 
   * Reject unknown system recipients when the alias catch-all is a
