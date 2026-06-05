@@ -213,8 +213,17 @@ presence-based run scripts re-enable =CHKUSER_START= on the next restart.
   =control/maxrcpt= to bound recipients per session if wanted.
 - *rcpthosts wildcards* :: leading-dot entries (=.example.com=) are honoured;
   =morercpthosts.cdb= is not consulted.
-- *system-identity probe* :: =system-identity LOCALPART= reports how any
-  local-part will be classified — use it to debug routing on the host.
+- *fastforward alias catch-all* :: if =~alias/.qmail-default= is
+  =| fastforward <cdb>=, the validator reads =<cdb>= and rejects unknown system
+  recipients at RCPT (550) instead of accepting-then-bouncing them. The cdb is
+  then the live alias database: after editing =/etc/aliases= run =newaliases=
+  (it delegates to fastforward's =qmail-newaliases= to rebuild
+  =/etc/aliases.cdb=), or a newly-added alias is rejected. Do *not* add =-p= to
+  the catch-all — pass-through is read as "accept everything" and disables the
+  RCPT reject.
+- *system-identity probe* :: =system-identity LOCALPART [DOMAIN]= reports how any
+  local-part will be classified — use it to debug routing on the host. Pass
+  =DOMAIN= to exercise the fastforward-cdb check for the alias catch-all.
 
 * Known gaps / follow-ups
 - [ ] *Delivery-time Maildir auto-create* not yet implemented (the dispatcher
