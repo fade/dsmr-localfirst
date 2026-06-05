@@ -101,7 +101,7 @@ int main(int argc, char **argv)
         _exit(EXIT_TEMP);
     }
 
-    if (system_identity(localpart) == SI_NONE)
+    if (system_identity(localpart, host) == SI_NONE)
         exec_vpopmail();   /* not a system identity — vpopmail path, unchanged */
 
     /* System identity: re-inject to <local-part>@HOST via forward. */

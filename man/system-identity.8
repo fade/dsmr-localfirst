@@ -4,6 +4,7 @@ system-identity \- test whether a local-part is a mail-eligible system identity
 .SH SYNOPSIS
 .B system-identity
 .I LOCALPART
+.RI [ DOMAIN ]
 .SH DESCRIPTION
 .B system-identity
 evaluates the shared eligibility predicate used by the DSMR system-first
@@ -31,6 +32,32 @@ translated to
 .RB \(oq : \(cq,
 matching qmail-local's filename rules).
 .PP
+When that alias catch-all is a
+.RB \(oq "| fastforward " cdb \(cq
+program (see
+.BR fastforward (1)),
+the catch-all does not deliver every address: fastforward bounces any recipient
+absent from
+.IR cdb .
+.B system-identity
+reproduces that verdict by validating the recipient against
+.I cdb
+directly \(em trying the same targets fastforward does
+.RI ( LOCALPART @ DOMAIN ,
+.RI @ DOMAIN ,
+and
+.RI LOCALPART @)
+\(em so an unknown recipient is reported as not a system identity (and is thus
+rejected at SMTP time) rather than accepted and later bounced.
+.I DOMAIN
+supplies the host for those lookups; omit it to probe with the host-independent
+.RI LOCALPART @
+target only. A
+.B \-p
+pass-through fastforward, or a
+.I cdb
+that cannot be read, leaves the plain deliverable verdict unchanged.
+.PP
 It is the same predicate consulted by
 .BR localfirst-rcptcheck (8)
 at SMTP time and by
@@ -57,4 +84,6 @@ stack's hybrid-safety narrowing of qmail-getpw's home-ownership test, applied
 identically at SMTP-validation and delivery time so the two never disagree.
 .SH SEE ALSO
 .BR localfirst-rcptcheck (8),
-.BR localfirst-dispatch (8)
+.BR localfirst-dispatch (8),
+.BR fastforward (1),
+.BR newaliases (1)

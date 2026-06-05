@@ -4,6 +4,8 @@
 /localfirst-dispatch
 /localfirst-rcptcheck
 /test/test_ext
+/test/test_deliverable
+/test/test_fastforward
 /test/*-t
 
 # debhelper / dpkg-buildpackage outputs

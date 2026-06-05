@@ -1,3 +1,27 @@
+dsmr-localfirst (1.0-6) trixie; urgency=high
+
+  * Reject unknown system recipients when the alias catch-all is a
+    fastforward cdb, instead of accepting them and bouncing later
+    (backscatter). On a host whose ~alias/.qmail-default is
+    "| fastforward <cdb>", that catch-all does not deliver every address —
+    fastforward bounces any recipient absent from the cdb. The recipient gate
+    previously accepted such addresses on the mere existence of
+    .qmail-default, so spam to nonexistent local users was taken at SMTP time
+    and turned into a null-sender failure notice, harming the sending IP's
+    reputation. The gate now reproduces fastforward's own verdict: it reads
+    the cdb directly and probes the same targets fastforward does
+    (local@domain, @domain, local@), accepting only recipients fastforward
+    would forward and rejecting the rest at RCPT (550). A "-p" pass-through
+    fastforward and an unreadable cdb both retain the prior accept behaviour.
+  * system_identity now takes the recipient domain, used for the host-keyed
+    fastforward lookups; system-identity(8) gains an optional DOMAIN argument.
+  * Maintenance note: the fastforward cdb is the source of truth for system
+    aliases. Adding an alias requires rebuilding the cdb (setforward, or a
+    real newaliases) — editing /etc/aliases alone is not enough, and an alias
+    missing from the cdb will now be correctly rejected.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Thu, 04 Jun 2026 23:53:30 +0000
+
 dsmr-localfirst (1.0-5) trixie; urgency=high
 
   * localfirst-rcptcheck: fail open when a system user's home cannot be searched.

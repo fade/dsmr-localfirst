@@ -406,14 +406,14 @@ int main(void)
      * addressing, and ~alias/.qmail aliases — and reject only what qmail-local
      * would bounce. There is no vpopmail fallthrough for a locals domain. */
     if (domain_listed(LOCALS, domain)) {
-        if (system_identity(local) != SI_NONE)
+        if (system_identity(local, domain) != SI_NONE)
             return accept_rcpt();
         return reject();
     }
 
     if (domain_listed(LOCALFIRSTDOMAINS, domain)) {
         /* hybrid domain: system-first, then vpopmail fallthrough */
-        if (system_identity(local) != SI_NONE)
+        if (system_identity(local, domain) != SI_NONE)
             return accept_rcpt();
     }
     /* For a hybrid domain that was not a system identity, and for any other
