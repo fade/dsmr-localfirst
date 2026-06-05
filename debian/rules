@@ -3,10 +3,47 @@
 # Pull in dpkg-buildflags so hardening flags propagate to cc.
 include /usr/share/dpkg/buildflags.mk
 
+# Documentation is generated from the org-mode source of truth at build time:
+#   doc/man/<name>.<sec>.org  -> man/<name>.<sec>   (pandoc, groff man)
+#   doc/dsmr-localfirst.org   -> .info             (emacs ox-texinfo + makeinfo)
+#                             -> .html             (emacs ox-html, doc website)
+# The generators (pandoc, emacs, texinfo) are Build-Depends only; nothing is
+# required on the production host, which ships the static results.
+EMACS ?= emacs
+TOPIC = doc/dsmr-localfirst
+
 %:
 	dh $@
+
+override_dh_auto_build:
+	dh_auto_build
+	# Man pages: one org source per command -> groff, cross-referencing the
+	# other stack components' man pages in SEE ALSO.
+	mkdir -p man
+	set -e; for m in doc/man/*.org; do \
+	    base=$$(basename "$$m" .org); \
+	    name=$${base%.*}; sec=$${base##*.}; \
+	    pandoc -f org -t man -s \
+	        -M title="$$name" -M section="$$sec" -M date="2026" \
+	        -M header="DSMR mail stack" -M footer="dsmr-localfirst" \
+	        "$$m" -o "man/$$base"; \
+	done
+	# GNU info manual.
+	$(EMACS) --batch -Q \
+	    --eval "(require 'ox-texinfo)" \
+	    --eval "(with-current-buffer (find-file-noselect \"$(TOPIC).org\") (org-texinfo-export-to-texinfo))"
+	makeinfo --no-split "$(TOPIC).texi" -o "$(TOPIC).info"
+	# HTML documentation page (the per-package slice of the doc website).
+	$(EMACS) --batch -Q \
+	    --eval "(require 'ox-html)" \
+	    --eval "(setq org-html-validation-link nil)" \
+	    --eval "(with-current-buffer (find-file-noselect \"$(TOPIC).org\") (org-html-export-to-html))"
 
 override_dh_auto_install:
 	$(MAKE) install \
 	    DESTDIR=$(CURDIR)/debian/dsmr-localfirst \
 	    PREFIX=/var/qmail
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -f man/*.8 "$(TOPIC).texi" "$(TOPIC).info" "$(TOPIC).html"

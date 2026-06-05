@@ -1,0 +1,54 @@
+#+TITLE: system-identity
+
+* NAME
+system-identity - test whether a local-part is a mail-eligible system identity
+
+* SYNOPSIS
+*system-identity* /LOCALPART/ [ /DOMAIN/ ]
+
+* DESCRIPTION
+*system-identity* evaluates the shared eligibility predicate used by DSMR
+system-first recipient routing on hybrid system/vpopmail domains. A local-part
+is a /mail-eligible system identity/ when qmail itself would deliver it locally
+rather than bounce, restricted to /home accounts and the alias user.
+
+Resolution follows qmail's own address handling. The longest dash-delimited
+prefix of /LOCALPART/ that names a real /home account (qmail lowercases the
+login first; uid 0 is excluded) is the controlling user, and the remainder is
+its qmail extension. A bare user is always deliverable; an extension is
+deliverable only when a matching =.qmail-<ext>= file or one of the
+=.qmail-...default= catch-alls exists. An otherwise-unresolved local-part is
+deliverable when the alias user has a matching =~alias/.qmail-LOCALPART= or a
+catch-all.
+
+When the alias catch-all is =| fastforward <cdb>=, the mere existence of
+=.qmail-default= is not deliverability: fastforward bounces any address absent
+from /cdb/. *system-identity* then reads /cdb/ directly and reproduces
+fastforward's verdict, probing the targets fastforward tries —
+=:LOCALPART@DOMAIN=, =:@DOMAIN=, =:LOCALPART@= (lowercased). /DOMAIN/ supplies
+the host for those lookups; omit it to probe with the host-independent
+=:LOCALPART@= target only.
+
+It is the same predicate consulted by *localfirst-rcptcheck*(8) at SMTP time and
+by *localfirst-dispatch*(8) at delivery time, exposed as a command so an
+administrator can verify how a given recipient will be classified.
+
+* EXIT STATUS
+- *0* :: The local-part is a system identity; it is printed on standard output
+  and the matched clause (passwd or alias) is noted on standard error.
+- *1* :: Not a system identity; resolution falls through to vpopmail.
+- *2* :: Usage error.
+
+* NOTES
+Service accounts (homes not under =/home/=) and uid 0 are deliberately excluded,
+so a virtual recipient that merely collides with a system login is not treated
+as a system identity. This narrowing is applied identically at SMTP-validation
+and delivery time so the two never disagree.
+
+* SEE ALSO
+*localfirst-rcptcheck*(8), *localfirst-dispatch*(8), *fastforward*(1),
+*newaliases*(1)
+
+For the theory of operation, configuration, and debugging hints, see the
+/dsmr-localfirst/ info manual (=info dsmr-localfirst=) or the stack
+documentation website.

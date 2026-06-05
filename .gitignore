@@ -8,6 +8,12 @@
 /test/test_fastforward
 /test/*-t
 
+# Generated documentation — org-mode under doc/ is the source of truth.
+/man/*.8
+/doc/dsmr-localfirst.texi
+/doc/dsmr-localfirst.info
+/doc/dsmr-localfirst.html
+
 # debhelper / dpkg-buildpackage outputs
 /debian/dsmr-localfirst/
 /debian/files

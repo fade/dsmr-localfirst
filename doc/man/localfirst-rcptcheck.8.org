@@ -1,0 +1,65 @@
+#+TITLE: localfirst-rcptcheck
+
+* NAME
+localfirst-rcptcheck - SMTP-time recipient validator for hybrid system/vpopmail domains
+
+* SYNOPSIS
+*RCPTCHECK=/var/qmail/bin/localfirst-rcptcheck*
+
+* DESCRIPTION
+*localfirst-rcptcheck* is a qmail-smtpd *RCPTCHECK* program. It validates each
+recipient at SMTP time, accepting system identities on hybrid domains that
+vpopmail's *chkuser* would otherwise reject. The recipient is read from the
+*RECIPIENT* environment variable; the verdict is signalled by exit status (0
+accept, 100 reject → 550, 111 temporary → 451).
+
+* DECISION LOGIC
+- *Domain not in rcpthosts* :: Accepted. The recipient is a relay target; relay
+  permission is enforced earlier by authentication and tcprules. The validator
+  never rejects a non-local domain, so authenticated submission to external
+  addresses is unaffected.
+- *Domain in locals* :: A system (locals) domain is delivered to system accounts
+  only; qmail-send never routes it to vpopmail. It is validated against the
+  system layer alone (see *system-identity*(8)), with no vpopmail fallthrough.
+- *Domain in localfirstdomains* :: A hybrid (vpopmail) domain. Accepted if the
+  local-part is a system identity (see *system-identity*(8)); otherwise the
+  vpopmail check below applies.
+- *Other local domain* :: A pure vpopmail domain. The vpopmail recipient check
+  applies.
+
+The vpopmail check shells out to =~vpopmail/bin/vrcptcheck=. Because that tool
+cannot distinguish an unknown user from a backend outage (both yield its exit
+1), an absent result triggers a TCP liveness probe of the vpopmail SQL backend
+(host and port read from =~vpopmail/etc/vpopmail.pgsql=): a confirmed outage is
+deferred (451) and logged at *LOG_CRIT* to the mail facility, never permanently
+rejected. If *vrcptcheck* is not installed at all, the host has no vpopmail
+layer (a system-only deployment) and an unknown local recipient is rejected.
+
+On acceptance, control is handed to the next *RCPTCHECK* program if one is
+installed (by default =/var/qmail/bin/rcptcheck-overlimit=, the outbound relay
+throttle), so both checks share qmail's single *RCPTCHECK* slot.
+
+* CONTROL FILES
+- =/var/qmail/control/locals= :: One domain per line; qmail's system
+  (locally-delivered) domains, validated against the system layer only. A line
+  beginning with a dot matches subdomains.
+- =/var/qmail/control/localfirstdomains= :: One domain per line; the vpopmail
+  domains for which system-first resolution applies. A leading dot matches
+  subdomains.
+- =/var/qmail/control/localfirst= :: First line =1= enables this validator in
+  the dsmr-qmail-run smtpd/submission run scripts; otherwise chkuser is used.
+- =/var/qmail/control/rcpthosts= :: Consulted to distinguish local domains from
+  relay targets. Leading-dot wildcards are honoured; =morercpthosts.cdb= is not.
+
+* SECURITY
+A recipient whose domain is not in =rcpthosts= is never rejected, preserving
+relay for authenticated submitters. A local-part containing =@= on a local
+domain is rejected, since it cannot name a system account and would be
+mis-parsed by the downstream existence check.
+
+* SEE ALSO
+*localfirst-dispatch*(8), *system-identity*(8), *localfirst-backend-monitor*(8)
+
+For the theory of operation, configuration, and debugging hints, see the
+/dsmr-localfirst/ info manual (=info dsmr-localfirst=) or the stack
+documentation website.

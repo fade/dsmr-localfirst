@@ -1,3 +1,17 @@
+dsmr-localfirst (1.0-8) trixie; urgency=low
+
+  * Generate system documentation from an org-mode source of truth at build
+    time. doc/man/*.org are the per-command man-page sources (pandoc → groff);
+    doc/dsmr-localfirst.org is the topic manual (TL;DR, theory of operation,
+    usage examples, configuration, extension points, gotchas/debugging) and is
+    exported to a GNU info manual (emacs ox-texinfo → makeinfo) and an HTML
+    documentation page (emacs ox-html). The previous hand-written groff man
+    pages are removed; org is now the single source.
+  * Build-Depends on emacs-nox | emacs, texinfo, pandoc (generators only — the
+    production package ships the static man/info/HTML and needs none of them).
+
+ -- Brian O'Reilly <fade@deepsky.com>  Fri, 05 Jun 2026 12:25:11 +0000
+
 dsmr-localfirst (1.0-7) trixie; urgency=low
 
   * Docs only. SPEC: document the eligibility contract's fastforward refinement
