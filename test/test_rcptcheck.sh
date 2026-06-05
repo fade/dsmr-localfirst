@@ -18,8 +18,8 @@ fail() { printf 'FAIL %s\n' "$1"; fails=$((fails + 1)); }
 # rcpthosts includes a leading-dot wildcard entry to exercise suffix matching.
 # sys.example is a locals (system) domain: validated against the system layer
 # only, with no vpopmail fallthrough.
-printf 'asteroid.radio\nmail.example.com\nsys.example\n.wild.example\n' > "$tmp/rcpthosts"
-printf 'asteroid.radio\n'                                  > "$tmp/localfirstdomains"
+printf 'example.org\nmail.example.com\nsys.example\n.wild.example\n' > "$tmp/rcpthosts"
+printf 'example.org\n'                                  > "$tmp/localfirstdomains"
 printf 'sys.example\n'                                     > "$tmp/locals"
 
 cat > "$tmp/vrcptcheck" <<'EOF'
@@ -73,16 +73,16 @@ rm -f "$tmp/sqlconf" "$tmp/chain"
 # --- baseline disposition matrix ---
 expect "external relay target accepted"        0   "friend@gmail.com"
 if [ -n "$home_user" ]; then
-    expect "hybrid + system user accepted"      0   "$home_user@asteroid.radio"
-    expect "hybrid + mixed-case system user accepted" 0 "${home_user^}@asteroid.radio"
+    expect "hybrid + system user accepted"      0   "$home_user@example.org"
+    expect "hybrid + mixed-case system user accepted" 0 "${home_user^}@example.org"
 fi
-expect "hybrid fallthrough to vpopmail exists"  0   "realbob@asteroid.radio"
-expect "hybrid unknown rejected"                100 "ghost@asteroid.radio"
-expect "hybrid service-acct not system-first"   100 "bin@asteroid.radio"
+expect "hybrid fallthrough to vpopmail exists"  0   "realbob@example.org"
+expect "hybrid unknown rejected"                100 "ghost@example.org"
+expect "hybrid service-acct not system-first"   100 "bin@example.org"
 expect "pure vpopmail exists accepted"          0   "realbob@mail.example.com"
 expect "pure vpopmail unknown rejected"         100 "ghost@mail.example.com"
 expect "vpopmail temp failure deferred"         111 "tmpguy@mail.example.com"
-expect "embedded-@ local on local domain rejected" 100 "a@b@asteroid.radio"
+expect "embedded-@ local on local domain rejected" 100 "a@b@example.org"
 expect "embedded-@ local on relay target accepted"   0 "a@b@gmail.com"
 expect "malformed recipient accepted"           0   "noatsign"
 expect "missing RECIPIENT deferred"             111
@@ -120,13 +120,13 @@ cat > "$tmp/chain" <<'EOF'
 exit 42
 EOF
 chmod +x "$tmp/chain"
-expect "accept hands off to chain program"      42  "realbob@asteroid.radio"
+expect "accept hands off to chain program"      42  "realbob@example.org"
 rm -f "$tmp/chain"
 
 # --- C: system-only host (vrcptcheck not installed) -> unknown rejected ---
 BIN="$tmp/rc_nolayer" expect "system-only: unknown local recipient rejected" 100 "ghost@mail.example.com"
 if [ -n "$home_user" ]; then
-    BIN="$tmp/rc_nolayer" expect "system-only: system identity still accepted" 0 "$home_user@asteroid.radio"
+    BIN="$tmp/rc_nolayer" expect "system-only: system identity still accepted" 0 "$home_user@example.org"
 fi
 
 if [ "$fails" -ne 0 ]; then printf '%d failure(s)\n' "$fails"; exit 1; fi

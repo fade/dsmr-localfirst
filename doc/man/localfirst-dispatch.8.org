@@ -28,7 +28,7 @@ delivery-time fallback (running as the target user) creates it if absent.
 * WIRING
 In the vpopmail domain's =.qmail-default=:
 
-: | /var/qmail/bin/localfirst-dispatch b612.asteroid.radio
+: | /var/qmail/bin/localfirst-dispatch hoth.example.org
 
 * SEE ALSO
 *localfirst-rcptcheck(8)*, *system-identity(8)*, *forward(1)*

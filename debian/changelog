@@ -1,3 +1,13 @@
+dsmr-localfirst (1.0-9) trixie; urgency=low
+
+  * Generalize the documentation and examples for public reuse: host, domain,
+    and address references that named one specific production deployment are
+    replaced with neutral example.* equivalents in the topic manual, man-page
+    source, design notes, example config, source comments, and test fixtures.
+    No behavioural change.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Fri, 05 Jun 2026 16:00:00 +0000
+
 dsmr-localfirst (1.0-8) trixie; urgency=low
 
   * Generate system documentation from an org-mode source of truth at build

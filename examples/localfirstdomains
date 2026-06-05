@@ -7,5 +7,5 @@
 #
 # A domain listed here MUST also appear in control/rcpthosts.
 #
-# Example for b612.asteroid.radio serving the asteroid.radio domain:
-asteroid.radio
+# Example for hoth.example.org serving the example.org domain:
+example.org

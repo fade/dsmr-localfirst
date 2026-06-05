@@ -174,9 +174,9 @@ int main(void)
     ck("cdb_find error on missing file", ff_find("/no/such/cdb/here", ":x@"), -1);
 
     /* --- fastforward_cdb_match: the controlled-wildcard sequence --- */
-    ck("known role via :lp@",            fastforward_cdb_match(cdb, "postmaster", "deepsky.com"), 1);
-    ck("known role case-folded",         fastforward_cdb_match(cdb, "PostMaster", "deepsky.com"), 1);
-    ck("unknown localpart bounces",      fastforward_cdb_match(cdb, "nosuchuser", "deepsky.com"), 0);
+    ck("known role via :lp@",            fastforward_cdb_match(cdb, "postmaster", "example.com"), 1);
+    ck("known role case-folded",         fastforward_cdb_match(cdb, "PostMaster", "example.com"), 1);
+    ck("unknown localpart bounces",      fastforward_cdb_match(cdb, "nosuchuser", "example.com"), 0);
     ck("host-specific :lp@domain hit",   fastforward_cdb_match(cdb, "sales", "example.com"), 1);
     ck("host-specific miss on other host", fastforward_cdb_match(cdb, "sales", "other.com"), 0);
     ck("domain catch-all :@domain hit",  fastforward_cdb_match(cdb, "whoever", "catchall.example"), 1);

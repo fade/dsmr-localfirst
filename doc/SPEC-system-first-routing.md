@@ -1,7 +1,7 @@
 # SPEC — System-first recipient routing (hybrid system/vpopmail domains)
 
 Status: ACCEPTED — decisions resolved (see §12), ready for implementation
-Target host (first deployment): b612.asteroid.radio
+Target host (first deployment): hoth.example.org
 Motivation: shipping gap — mail to shell-user addresses on a vpopmail virtual
 domain is rejected at SMTP time by chkuser.
 
@@ -14,7 +14,7 @@ password database, so an address that is meant to be delivered to a *system*
 user (shell account) is rejected `550 ... nomailbox (chkuser)` even though
 `qmail-send` would deliver it correctly.
 
-The current production state on b612 papers over this with per-user vpopmail
+The current production state on hoth papers over this with per-user vpopmail
 aliases that shadow `=domain-user:` qmail assigns — two representations of one
 fact, hand-maintained, easy to drift. This spec replaces that with a single
 dynamic mechanism.
@@ -84,7 +84,7 @@ else:
 ```
 
 Delivery to the system identity is done by **re-injecting** to
-`<local-part>@b612.asteroid.radio` (the `locals` host domain) rather than
+`<local-part>@hoth.example.org` (the `locals` host domain) rather than
 writing the Maildir directly, because the catch-all runs as the vpopmail user
 and must not write into a user-owned `~/Maildir`. Re-injection lets qmail
 deliver with correct ownership via `control/defaultdelivery`.
@@ -124,10 +124,10 @@ recipient-existence check; see §6 for what else chkuser did.
 
 ### 4.4 Domain scoping
 System-first applies only to designated domains, via a new control file
-`control/localfirstdomains` (one domain per line). For b612:
+`control/localfirstdomains` (one domain per line). For hoth:
 
 ```
-asteroid.radio
+example.org
 ```
 
 For any domain NOT listed, the validator and dispatcher skip the system-first
@@ -135,11 +135,11 @@ branch and behave as pure vpopmail (chkuser-equivalent). This keeps the feature
 safe on multi-domain hosts (otherwise `fade@anydomain` would be accepted just
 because `fade` is a system user).
 
-## 5. Configuration changes (b612)
+## 5. Configuration changes (hoth)
 
 - `control/defaultdelivery` = `./Maildir/`  (currently ABSENT — latent bug;
   required so re-injected system delivery lands in `~/Maildir`, Maildir format).
-- `control/localfirstdomains` = `asteroid.radio` (new).
+- `control/localfirstdomains` = `example.org` (new).
 - vpopmail domain `.qmail-default` → the dispatcher (§4.2).
 - `qmail-smtpd/run` and `qmail-submission/run`: stop exporting
   `CHKUSER_START=ALWAYS`; export `RCPTCHECK=<validator>` (+ keep
@@ -201,7 +201,7 @@ rest of the stack follows.
   `~alias/.qmail-*` light up the moment the dispatcher + validator are in place —
   no per-user migration. Sweep step: ensure each eligible account has `~/Maildir`.
 - **Decommissioning the stop-gap:** remove the 5 vpopmail aliases and the
-  per-user `=asteroid.radio-<user>:` assigns (delivery now flows through the
+  per-user `=example.org-<user>:` assigns (delivery now flows through the
   dispatcher). Rebuild `users/cdb` after assign changes.
 
 ## 9. Rollback
@@ -214,13 +214,13 @@ Keep timestamped backups of every edited control/run file.
 
 ## 10. Test plan
 
-From outrider (non-relay path), SMTP RCPT probe (no DATA):
-- `fade@asteroid.radio` → 250 (system, /home)
-- `root@asteroid.radio` → 250 (alias clause)
-- `<real-vpopmail-user>@asteroid.radio` → 250 (fallthrough)
-- `nonexistent@asteroid.radio` → 550 (neither)
-- `bin@asteroid.radio` → 550 (system acct but home not under /home → not eligible)
-Then end-to-end: deliver a message to `fade@asteroid.radio` and confirm it lands
+From tatooine (non-relay path), SMTP RCPT probe (no DATA):
+- `fade@example.org` → 250 (system, /home)
+- `root@example.org` → 250 (alias clause)
+- `<real-vpopmail-user>@example.org` → 250 (fallthrough)
+- `nonexistent@example.org` → 550 (neither)
+- `bin@example.org` → 550 (system acct but home not under /home → not eligible)
+Then end-to-end: deliver a message to `fade@example.org` and confirm it lands
 in `/home/fade/Maildir/new`; deliver to a vpopmail user and confirm vpopmail
 delivery; confirm a relayclient/authenticated submission still bypasses the
 validator.

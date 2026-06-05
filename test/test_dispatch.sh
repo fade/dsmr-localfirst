@@ -22,7 +22,7 @@ cat > "$tmp/vdelivermail" <<'EOF'
 printf 'VDELIVERMAIL [%s] [%s]\n' "$1" "$2"
 EOF
 chmod +x "$tmp/forward" "$tmp/vdelivermail"
-printf 'b612.asteroid.radio\n' > "$tmp/me"
+printf 'hoth.example.org\n' > "$tmp/me"
 
 "${CC:-cc}" ${CFLAGS:--O2 -Wall -Wextra} \
     -DFORWARD="\"$tmp/forward\"" \
@@ -47,27 +47,27 @@ check() { # check DESC WANT_SUBSTR ACTUAL
 }
 
 if [ -n "$home_user" ]; then
-    out=$(run "$home_user" "" "b612.asteroid.radio")
-    check "system user re-injected via forward" "FORWARD $home_user@b612.asteroid.radio" "$out"
+    out=$(run "$home_user" "" "hoth.example.org")
+    check "system user re-injected via forward" "FORWARD $home_user@hoth.example.org" "$out"
 fi
 
-out=$(run "ghostuser-xyz" "" "b612.asteroid.radio")
+out=$(run "ghostuser-xyz" "" "hoth.example.org")
 check "unknown user -> vdelivermail '' delete" "VDELIVERMAIL [] [delete]" "$out"
 
 # HOST from control/me when no argv
 if [ -n "$home_user" ]; then
     out=$(run "$home_user" "" "")
-    check "host falls back to control/me" "FORWARD $home_user@b612.asteroid.radio" "$out"
+    check "host falls back to control/me" "FORWARD $home_user@hoth.example.org" "$out"
 fi
 
 # EXT used when DEFAULT empty
 if [ -n "$home_user" ]; then
-    out=$(run "" "$home_user" "b612.asteroid.radio")
-    check "EXT used when DEFAULT empty" "FORWARD $home_user@b612.asteroid.radio" "$out"
+    out=$(run "" "$home_user" "hoth.example.org")
+    check "EXT used when DEFAULT empty" "FORWARD $home_user@hoth.example.org" "$out"
 fi
 
 # neither DEFAULT nor EXT -> temp failure (exit 111), no delivery
-env -u DEFAULT -u EXT "$tmp/dispatch-t" "b612.asteroid.radio" >/dev/null 2>&1
+env -u DEFAULT -u EXT "$tmp/dispatch-t" "hoth.example.org" >/dev/null 2>&1
 if [ $? -eq 111 ]; then pass "no DEFAULT/EXT -> temp failure (exit 111)"
 else fail "no DEFAULT/EXT should exit 111"; fi
 

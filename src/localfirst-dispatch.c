@@ -11,7 +11,7 @@
  * delivers it to the system account with correct ownership. Otherwise the
  * original vpopmail catch-all (vdelivermail '' delete) is exec'd unchanged.
  *
- * HOST is the locals host domain to re-inject to (e.g. b612.asteroid.radio).
+ * HOST is the locals host domain to re-inject to (e.g. hoth.example.org).
  * It is taken from argv[1]; if omitted, from control/me. It MUST differ from
  * the vpopmail virtual domain so re-injection does not loop back here (qmail's
  * Delivered-To loop guard is a backstop, not the primary defence).

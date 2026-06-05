@@ -90,26 +90,26 @@ to accept.
 Classify a recipient exactly as the live gate will (run as the smtpd user to
 mirror production):
 
-: # system-identity postmaster deepsky.com      # -> exit 0, "alias"
-: # system-identity nosuchuser deepsky.com       # -> exit 1, "vpopmail"
-: # sudo -u vpopmail system-identity alice asteroid.radio
+: # system-identity postmaster example.com      # -> exit 0, "alias"
+: # system-identity nosuchuser example.com       # -> exit 1, "vpopmail"
+: # sudo -u vpopmail system-identity alice example.org
 
 Enable the system-first gate on a host:
 
 : # echo 1 > /var/qmail/control/localfirst
-: # echo asteroid.radio > /var/qmail/control/localfirstdomains
+: # echo example.org > /var/qmail/control/localfirstdomains
 : # qmailctl restart
 : # ps auxe | grep -m1 '[q]mail-smtpd' | tr ' ' '\n' | grep RCPTCHECK=
 
 Wire the delivery dispatcher into a vpopmail domain's catch-all:
 
-: # qd=/home/vpopmail/domains/asteroid.radio/.qmail-default
-: # printf '| /var/qmail/bin/localfirst-dispatch %s\n' mail.asteroid.radio > "$qd"
+: # qd=/home/vpopmail/domains/example.org/.qmail-default
+: # printf '| /var/qmail/bin/localfirst-dispatch %s\n' mail.example.org > "$qd"
 : # chown vpopmail:vchkpw "$qd"
 
 Verify the RCPT gate from a non-relay path (its own public IP, RCPT only):
 
-: # printf 'HELO t\r\nMAIL FROM:<p@x.org>\r\nRCPT TO:<nosuchuser@deepsky.com>\r\nQUIT\r\n' \
+: # printf 'HELO t\r\nMAIL FROM:<p@x.org>\r\nRCPT TO:<nosuchuser@example.com>\r\nQUIT\r\n' \
 :     | nc -w5 <public-ip> 25 | sed -n '/^[0-9]/p'    # expect 550
 
 * Configuration
