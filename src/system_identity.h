@@ -13,6 +13,10 @@
  *              .qmail-<ext> or .qmail-…default catch-all exists (qmail-local).
  *   (clause 2) the qmail-getpw alias fallback: an unresolved L is deliverable
  *              iff ~alias/.qmail-<translate(L)> or a -default catch-all exists.
+ *              When that catch-all is a `| fastforward <cdb>` invocation it does
+ *              NOT deliver everything — fastforward bounces any address absent
+ *              from <cdb> — so L is validated against <cdb> (using the recipient
+ *              DOMAIN) and an unknown L is treated as not deliverable.
  *
  * Otherwise L is not a system identity and resolution falls through to vpopmail.
  *
@@ -54,9 +58,12 @@ int si_qmail_ext(const char *localpart, char *out, size_t n);
 int si_qmail_deliverable(const char *homedir, const char *ext);
 
 /*
- * Evaluate the eligibility predicate for `localpart`.
- * Returns SI_PASSWD, SI_ALIAS, or SI_NONE.
+ * Evaluate the eligibility predicate for `localpart` on recipient `domain`.
+ * `domain` is consulted only by clause 2's fastforward-cdb validation, where it
+ * is the $HOST fastforward would resolve the recipient against; it may be NULL
+ * or "" when the host is unknown (the validation then uses only the host-wildcard
+ * keys). Returns SI_PASSWD, SI_ALIAS, or SI_NONE.
  */
-si_result system_identity(const char *localpart);
+si_result system_identity(const char *localpart, const char *domain);
 
 #endif /* SYSTEM_IDENTITY_H */

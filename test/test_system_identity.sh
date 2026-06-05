@@ -31,6 +31,12 @@ expect_exit() {
 "${CC:-cc}" ${CFLAGS:--O2 -Wall} -o test/test_deliverable test/test_deliverable.c src/system_identity.c \
     && ./test/test_deliverable || fail "qmail deliverability unit test"
 
+# --- fastforward catch-all / cdb unit test (clause-2 backscatter fix) ---
+# Compiles system_identity.c directly (the cdb/fastforward internals are static);
+# it must NOT also be linked, hence no src/system_identity.c on this line.
+"${CC:-cc}" ${CFLAGS:--O2 -Wall} -o test/test_fastforward test/test_fastforward.c \
+    && ./test/test_fastforward || fail "fastforward/cdb unit test"
+
 # --- clause 1: a real /home account is eligible ---
 # Pick a passwd entry whose home is under /home/ to keep the test host-agnostic.
 home_user=$(getent passwd | awk -F: '$6 ~ /^\/home\// {print $1; exit}')
