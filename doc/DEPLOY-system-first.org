@@ -16,11 +16,11 @@ between any two top-level steps; each step is independently reversible (see
 The commands below use a stand-in host with the DSMR hybrid profile. Substitute
 your own values throughout:
 
-| Placeholder       | Example value     | Meaning                                          |
-|-------------------+-------------------+--------------------------------------------------|
-| =MAILHOST=        | mail.example.com  | the host FQDN; also the =locals= re-injection host |
-| =DOMAIN=          | example.com       | the vpopmail virtual domain served               |
-| backend           | PostgreSQL :5433  | vpopmail SQL backend (host:port from its conf)   |
+| Placeholder | Example value    | Meaning                                            |
+|-------------+------------------+----------------------------------------------------|
+| =MAILHOST=  | mail.example.com | the host FQDN; also the =locals= re-injection host |
+| =DOMAIN=    | example.com      | the vpopmail virtual domain served                 |
+| backend     | PostgreSQL :5433 | vpopmail SQL backend (host:port from its conf)     |
 
 The profile assumes: =MAILHOST= ≠ =DOMAIN= (so re-injection does not loop), and
 vpopmail's backend is SQL (the recipient validator's outage handling matters).

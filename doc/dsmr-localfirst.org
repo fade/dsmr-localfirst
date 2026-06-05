@@ -1,0 +1,193 @@
+#+TITLE: dsmr-localfirst — System-first recipient routing
+#+AUTHOR: Brian O'Reilly
+#+LANGUAGE: en
+#+OPTIONS: toc:2 num:t
+#+TEXINFO_DIR_CATEGORY: Mail
+#+TEXINFO_DIR_TITLE: dsmr-localfirst: (dsmr-localfirst).
+#+TEXINFO_DIR_DESC: System-first recipient routing for hybrid qmail/vpopmail domains
+#+TEXINFO_FILENAME: dsmr-localfirst.info
+
+* TL;DR
+:PROPERTIES:
+:DESCRIPTION: What this package is, in one screen.
+:END:
+
+=dsmr-localfirst= lets a single mail domain serve *both* shell (system) users
+and vpopmail virtual users on the DSMR qmail stack. On a domain vpopmail owns,
+qmail-smtpd's =chkuser= validates recipients against vpopmail only, so mail to a
+system account is rejected at SMTP time even though =qmail-send= would deliver
+it. This package resolves recipients *system-first*, then falls through to
+vpopmail.
+
+Resolution is *dynamic*: creating a normal Unix account (home under =/home=) or
+an =~alias/.qmail-NAME= alias is enough for that identity to receive mail — no
+per-user vpopmail alias or qmail assign to provision. One eligibility predicate
+(*system-identity(8)*) is shared by the SMTP-time gate and the delivery
+dispatcher so the two can never disagree.
+
+Three programs:
+
+- *system-identity(8)* — CLI for the shared eligibility predicate.
+- *localfirst-rcptcheck(8)* — qmail-smtpd =RCPTCHECK= validator, replaces chkuser.
+- *localfirst-dispatch(8)* — =.qmail-default= dispatcher; re-injects system
+  recipients, otherwise runs =vdelivermail= unchanged.
+
+It is *opt-in*: the dsmr-qmail-run run scripts switch to it only when
+=control/localfirst= has =1= on its first line.
+
+* Theory of operation
+:PROPERTIES:
+:DESCRIPTION: How recipients are resolved, at SMTP time and at delivery.
+:END:
+
+** The eligibility predicate
+A local-part /L/ is a *mail-eligible system identity* iff qmail itself would
+deliver it locally rather than bounce, narrowed to =/home= accounts and the
+=alias= user:
+
+1. *Passwd clause.* The longest dash-delimited prefix of /L/ that names a real
+   =/home= account (lowercased, uid ≠ 0) is the controlling user; the remainder
+   is its qmail extension. A bare user always delivers; an extension delivers
+   only when =.qmail-<ext>= or a =.qmail-...default= catch-all exists.
+2. *Alias clause.* Otherwise /L/ is deliverable if =~alias/.qmail-L= or a
+   catch-all exists. When that catch-all is =| fastforward <cdb>=, the predicate
+   reads /cdb/ and reproduces fastforward's own verdict (see [[*Fastforward
+   alias catch-alls]]).
+
+The =/home= restriction excludes service accounts (=bin=, =www-data=, …) whose
+homes are elsewhere, so a virtual recipient that merely collides with a system
+login is not a system identity.
+
+** Two paths, one rule
+- *SMTP time* — *localfirst-rcptcheck(8)* runs as qmail-smtpd's =RCPTCHECK=. It
+  accepts a system identity on a =locals= or =localfirstdomains= domain, falls
+  through to the vpopmail existence check on hybrid/vpopmail domains, and never
+  rejects a non-local (relay) domain.
+- *Delivery time* — *localfirst-dispatch(8)* is the vpopmail domain's
+  =.qmail-default=. A system identity is re-injected to =L@HOST= (a =locals=
+  host) so qmail-local delivers it as the target user; everything else runs the
+  unchanged =vdelivermail= path.
+
+Because both call the same predicate, the SMTP-time and delivery-time views
+cannot drift apart.
+
+** Fastforward alias catch-alls
+When =~alias/.qmail-default= is =| fastforward <cdb>=, the catch-all does *not*
+deliver everything: fastforward bounces any address absent from /cdb/ (its
+default =-P=). The predicate therefore reads /cdb/ directly (a djb constant
+database) and probes exactly the targets fastforward tries for /L@DOMAIN/:
+=:L@DOMAIN=, =:@DOMAIN=, =:L@= (lowercased; the any-host alias form keeps the
+trailing =@=). A match is accepted; none is rejected at RCPT with 550 — so
+unknown system recipients are rejected cleanly instead of accepted-and-bounced
+(backscatter). A =-p= pass-through fastforward, or an unreadable cdb, falls back
+to accept.
+
+* Usage examples
+:PROPERTIES:
+:DESCRIPTION: Probing, enabling, and wiring the components.
+:END:
+
+Classify a recipient exactly as the live gate will (run as the smtpd user to
+mirror production):
+
+: # system-identity postmaster deepsky.com      # -> exit 0, "alias"
+: # system-identity nosuchuser deepsky.com       # -> exit 1, "vpopmail"
+: # sudo -u vpopmail system-identity alice asteroid.radio
+
+Enable the system-first gate on a host:
+
+: # echo 1 > /var/qmail/control/localfirst
+: # echo asteroid.radio > /var/qmail/control/localfirstdomains
+: # qmailctl restart
+: # ps auxe | grep -m1 '[q]mail-smtpd' | tr ' ' '\n' | grep RCPTCHECK=
+
+Wire the delivery dispatcher into a vpopmail domain's catch-all:
+
+: # qd=/home/vpopmail/domains/asteroid.radio/.qmail-default
+: # printf '| /var/qmail/bin/localfirst-dispatch %s\n' mail.asteroid.radio > "$qd"
+: # chown vpopmail:vchkpw "$qd"
+
+Verify the RCPT gate from a non-relay path (its own public IP, RCPT only):
+
+: # printf 'HELO t\r\nMAIL FROM:<p@x.org>\r\nRCPT TO:<nosuchuser@deepsky.com>\r\nQUIT\r\n' \
+:     | nc -w5 <public-ip> 25 | sed -n '/^[0-9]/p'    # expect 550
+
+* Configuration
+:PROPERTIES:
+:DESCRIPTION: Control files that drive the gate and dispatcher.
+:END:
+
+- =/var/qmail/control/localfirst= :: First line =1= opts the host into
+  system-first validation. Absent/other ⇒ chkuser is used (no behaviour change
+  on upgrade).
+- =/var/qmail/control/localfirstdomains= :: Hybrid domains (one per line; leading
+  dot matches subdomains) where system-first applies before vpopmail.
+- =/var/qmail/control/locals= :: System domains, validated against the system
+  layer only (no vpopmail fallthrough).
+- =/var/qmail/control/rcpthosts= :: Distinguishes local domains from relay
+  targets. =morercpthosts.cdb= is not consulted.
+- =/var/qmail/control/defaultdelivery= :: Should be =./Maildir/= so re-injected
+  system delivery lands in =~/Maildir=.
+- =/etc/cron.d/dsmr-localfirst= :: Schedules *localfirst-backend-monitor(8)*.
+
+* Extension points
+:PROPERTIES:
+:DESCRIPTION: Where to hook in or adapt behaviour.
+:END:
+
+- *Add a system mailbox without provisioning.* Create a =/home= account (and its
+  =~/Maildir=) — it is immediately mail-eligible on every hybrid domain. No
+  vpopmail alias, no qmail assign.
+- *Add a system alias.* An =~alias/.qmail-NAME= file, or an =/etc/aliases= entry
+  compiled into the fastforward cdb (=newaliases=), makes /NAME/ eligible.
+- *Chain another RCPTCHECK.* On accept, the validator execs
+  =RCPTCHECK_CHAIN= (default =rcptcheck-overlimit=); replace or extend it to add
+  further per-recipient policy (rate limits, greylisting) without losing the
+  system-first gate.
+- *System-only hosts.* With no =vrcptcheck= installed the validator is a pure
+  system-identity gate — usable on a host with no vpopmail layer at all.
+- *Compile-time paths.* Production paths are =-D=-overridable for hermetic tests
+  and unusual layouts; they are never read from the environment, so the gate
+  cannot be redirected at run time.
+
+* Gotchas and debugging
+:PROPERTIES:
+:DESCRIPTION: Failure modes and how to diagnose them.
+:END:
+
+- *Nothing changed after installing the package.* Validation is opt-in — set
+  =control/localfirst= to =1= and restart the services. Confirm with =ps auxe |
+  grep qmail-smtpd= that =RCPTCHECK= points at =localfirst-rcptcheck= and
+  =CHKUSER_START= is absent.
+- *A real alias is now rejected (550).* Its fastforward cdb is stale. The cdb,
+  not =/etc/aliases=, is the live database — rebuild it with =newaliases= (which
+  delegates to fastforward's =qmail-newaliases=). Confirm with =system-identity
+  NAME DOMAIN=.
+- *Unknown recipients are accepted then bounce (backscatter).* The fastforward
+  catch-all has =-p= (pass-through), which the gate reads as "accept
+  everything." Remove the =-p= so fastforward (and the gate) reject unknowns;
+  use plain =| fastforward /etc/aliases.cdb=.
+- *Every extension of a user is accepted even when undeliverable.* The validator
+  runs as the unprivileged smtpd user and cannot traverse a mode-700 home, so it
+  *fails open* on extensions of such users (delivery decides). Set system homes
+  =751= for precise extension validation.
+- *vpopmail recipients are deferred (451), not rejected.* The SQL backend is
+  unreachable; this is intentional (never reject real users during an outage).
+  *localfirst-backend-monitor(8)* alerts root/postmaster once per transition;
+  watch =LOG_CRIT= on the mail facility.
+- *Authenticated submission to gmail.com is rejected.* It should never be — a
+  non-=rcpthosts= domain is always accepted. If you see this, the recipient
+  domain wrongly appears in =locals=/=rcpthosts=.
+
+* Commands
+:PROPERTIES:
+:DESCRIPTION: Manual pages shipped with this package.
+:END:
+
+- *system-identity(8)* — the shared eligibility predicate, as a CLI probe.
+- *localfirst-rcptcheck(8)* — the SMTP-time =RCPTCHECK= validator.
+- *localfirst-dispatch(8)* — the delivery-time =.qmail-default= dispatcher.
+- *localfirst-backend-monitor(8)* — the vpopmail backend liveness alerter.
+
+See also *fastforward(1)* and *newaliases(1)* for the alias cdb, and the
+DSMR stack documentation website for cross-component theory of operation.

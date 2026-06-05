@@ -1,0 +1,38 @@
+#+TITLE: localfirst-backend-monitor
+
+* NAME
+localfirst-backend-monitor - out-of-band vpopmail SQL backend liveness check
+
+* SYNOPSIS
+*localfirst-backend-monitor*
+
+* DESCRIPTION
+*localfirst-backend-monitor* probes the vpopmail SQL backend and notifies root
+and postmaster once when it becomes unreachable and once when it recovers. It is
+run on a schedule from =/etc/cron.d/dsmr-localfirst=.
+
+When the backend is down, *localfirst-rcptcheck(8)* defers (451) vpopmail
+recipients rather than rejecting them, and logs *LOG_CRIT* to the mail facility.
+This monitor turns that condition into a single, rate-limited alert instead of a
+per-recipient message storm: it never injects mail per deferred recipient, which
+would only worsen a degraded MTA.
+
+The backend host and port are read from the first non-comment line of
+=~vpopmail/etc/vpopmail.pgsql= (credentials are never read). The alert is
+delivered to the system aliases root and postmaster via the local *sendmail*,
+which is routed by qmail-local and does not consult the vpopmail backend, so it
+is deliverable during an outage. State is tracked in
+=/run/localfirst-backend-monitor.state= so each up/down transition alerts
+exactly once.
+
+On a host with no vpopmail backend configured the monitor exits quietly, so it
+is harmless on system-delivery-only hosts.
+
+* ENVIRONMENT
+- *SQLCONF* :: Path to the vpopmail SQL connection file (default
+  =/home/vpopmail/etc/vpopmail.pgsql=).
+- *RECIPIENTS* :: Space-separated alert recipients (default "root postmaster").
+- *TIMEOUT* :: Seconds to wait for the backend TCP probe (default 3).
+
+* SEE ALSO
+*localfirst-rcptcheck(8)*, *system-identity(8)*
